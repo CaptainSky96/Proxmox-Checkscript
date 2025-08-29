@@ -178,6 +178,7 @@ check_each_pve_vm() {
 		# Check newbakage and warn, if last newest backup is too old
 		if [[ $gettemplate == 0 ]]
 		then
+
 			if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
 			then
 				if [[ -z $getprotrected ]]
@@ -185,24 +186,30 @@ check_each_pve_vm() {
 					warn "VMID: $pve_vm_id - $vmname - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
 				else
 					debugmsg "Tags: $gettags - Pool: $getpool - Ignoring Backup"
+					return
 				fi	
-			else
-				if [[ -n ${prune_backups[$getpool]} ]]
-				then
-					local pruneage=${prune_backups[$getpool]}
-					local oldbakage=$(( (dte - pruneage) / 86400 ))
-					local retention=$(date -d @${prune_backups[$getpool]})
-				else
-					local pruneage=${prune_storage[$getstorage]}
-					local oldbakage=$(( (dte - pruneage) / 86400 ))
-					local retention=$(date -d @${prune_storage[$getstorage]})
-				fi
-				debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
-				if (( $newbackupage > $scheduleage ))
-				then
-					warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
-				fi
 			fi
+
+			# get pruneage from pool or storage
+			if [[ -n ${prune_backups[$getpool]} ]]
+			then
+				local pruneage=${prune_backups[$getpool]}
+				local oldbakage=$(( (dte - pruneage) / 86400 ))
+				local retention=$(date -d @${prune_backups[$getpool]})
+			else
+				local pruneage=${prune_storage[$getstorage]}
+				local oldbakage=$(( (dte - pruneage) / 86400 ))
+				local retention=$(date -d @${prune_storage[$getstorage]})
+			fi
+
+			debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
+			debugmsg "vmid: $pve_vm_id - pruneage: $pruneage - oldbakage: $oldbakage"
+			
+			if (( $newbackupage > $scheduleage ))
+			then
+				warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
+			fi
+			
 			if (( $oldbackupage > $oldbakage ))
 			then
 				if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
