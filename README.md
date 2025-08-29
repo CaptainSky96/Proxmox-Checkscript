@@ -20,18 +20,20 @@
 
 <h3 align="left">How it works</h3>
 
-<p align="left">This Script gets the information of all QEMU VMs ans sorting them in Dictionaries.<br>
-The ID, the Hostname, the pool and the given tags<br>
-Also it gets all informations about the backup jobs, the pools and the storages.<br>
-All Informations will be compared to the informations from PBS.<br>
-Outputs WARNING IF:<br>
+<p align="left">
+  This Script gets the information of all QEMU VMs ans sorting them in Dictionaries.<br>
+  The ID, the Hostname, the pool and the given tags<br>
+  Also it gets all informations about the backup jobs, the pools and the storages.<br>
+  All Informations will be compared to the informations from PBS.<br>
+  It has multithreading implemented<br><br>
+
+  Outputs WARNING IF:<br>
   - hostname changed ( compares all backup hostnames with current )<br>
   - Backup failed / doesn't exist / too old<br>
   - Template VM isn't protected<br><br>
-Use it with crontab. Example:<br>
+  Use it with crontab. Example:<br>
   35 15 * * * root /usr/local/bin/check_proxmox_backups.sh -c cluster01 |<br>
-  /usr/bin/ifne mailx -s "Proxmox Backup Check: $(date +'\%F \%T')" 'yourmail@mail.com'
-</p>
+  /usr/bin/ifne mailx -s "Proxmox Backup Check: $(date +'\%F \%T')" 'yourmail@mail.com'</p>
 
 ###
 
