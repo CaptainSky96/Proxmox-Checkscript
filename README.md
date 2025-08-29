@@ -13,6 +13,8 @@
   You need an API Token for PVE and API Token(s) for each PBS.<br>
   The Users in PVE/PBS and its API should have Audit permissions in each section (Sys,VM,Pool,etc..).<br>
   In this script, you only can use the backup Retention from the Storage / Pool information in PVE. The Backup Retention in PBS is not implemented.<br>
+  It doesnt check the Retention option: "keep-last".<br>
+  It only checks daily, weekly, monthly, yearly.<br>
   This script checks only QEMU VMs / Templates, not LXC Containers.<br>
   You need sudo permissions, because the script works with chattr.</p>
 
