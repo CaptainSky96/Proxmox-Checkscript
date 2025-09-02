@@ -194,16 +194,17 @@ check_each_pve_vm() {
 			if [[ -n ${prune_backups[$getpool]} ]]
 			then
 				local pruneage=${prune_backups[$getpool]}
-				local oldbakage=$(( (dte - pruneage) / 86400 ))
+				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
 				local retention=$(date -d @${prune_backups[$getpool]})
 			else
 				local pruneage=${prune_storage[$getstorage]}
-				local oldbakage=$(( (dte - pruneage) / 86400 ))
+				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
 				local retention=$(date -d @${prune_storage[$getstorage]})
 			fi
 
 			debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
 			debugmsg "vmid: $pve_vm_id - pruneage: $pruneage - oldbakage: $oldbakage"
+			debugmsg "vmid: $pve_vm_id - oldbackupage: $oldbackupage"
 			
 			if (( $newbackupage > $scheduleage ))
 			then
@@ -214,9 +215,9 @@ check_each_pve_vm() {
 			then
 				if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
 				then
-					warn "VMID: $pve_vm_id - $vmname - OLDEST BACKUP WITH 'nobackup', $oldbackupage OLD. CHECK RETENTION POLICY!"
+					warn "VMID: $pve_vm_id - $vmname - OLDEST BACKUP WITH 'nobackup', $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
 				else
-					warn "VMID: $pve_vm_id - $vmname - OLDEST BACKUP IS $oldbackupage OLD. CHECK RETENTION POLICY!"
+					warn "VMID: $pve_vm_id - $vmname - OLDEST BACKUP IS $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
 				fi
 			fi
 		else
