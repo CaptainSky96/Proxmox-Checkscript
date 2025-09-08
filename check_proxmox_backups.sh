@@ -9,8 +9,8 @@
 ## Declaring Arrays / Dictionaries ##
 declare -r configfile=/etc/sysconfig/check_proxmox_backups.conf	# Config file for script
 declare -a pbs_json_vms					# Backup Informations from all pbs Servers in Array variable
-declare -A vms							# VM Maschines of productive proxmox
-declare -A snaps						# Backup IDs of Store 1 + Store 21
+declare -A vms						# VM Maschines of productive proxmox
+declare -A snaps					# Backup IDs of Store 1 + Store 21
 declare -A snapcomment					# Backup Comment (Name of VM) of Store 1
 declare -A snapprotected				# Check if Backup is protected
 declare -A snapstore					# Backup Storage of each Backup ID
@@ -32,10 +32,10 @@ declare -a pve_json_storage				# PVE Storage Informations
 declare -i verbose=0					# Verbose / Debug Mode
 declare -i warncounter=0				# Warning Counter
 declare -i dte=$(date +%s)				# Date in seconds since epoch
-declare -i ddays=$(date +%d)			# Day of month
-declare -i start_script=$SECONDS		# Start time of script
+declare -i ddays=$(date +%e)				# Day of month
+declare -i start_script=$SECONDS			# Start time of script
 declare -i MAX_THREAD_USAGE				# Maximum amount of multithreading
-declare -a PIDS=()						# Array of process IDs for loops while sorting
+declare -a PIDS=()					# Array of process IDs for loops while sorting
 
 ### FUNCTIONS ###
 
