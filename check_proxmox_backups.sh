@@ -190,16 +190,22 @@ check_each_pve_vm() {
 				fi	
 			fi
 
-			# get pruneage from pool or storage
+			# get pruneage from pool or storage. if both exists, pool has priority
+			# if none exists, define default retention of 7 days
 			if [[ -n ${prune_backups[$getpool]} ]]
 			then
 				local pruneage=${prune_backups[$getpool]}
 				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
 				local retention=$(date -d @${prune_backups[$getpool]})
-			else
+			elif [[ -n ${prune_storage[$getstorage]} ]]
+			then
 				local pruneage=${prune_storage[$getstorage]}
 				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
 				local retention=$(date -d @${prune_storage[$getstorage]})
+			else
+				local pruneage=$(( dte - 604800 )) # 7 days ago
+				local oldbakage=7
+				local retention=$(date -d @${pruneage})
 			fi
 
 			debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
