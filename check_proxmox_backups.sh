@@ -147,6 +147,12 @@ check_each_pve_vm() {
 		return
 	fi
 
+	if [ -z "$getstorage"]
+	then
+		warn "VMID: $pve_vm_id - $vmname - NO BACKUP STORAGE DEFINED IN POOL!"
+		local getstorage="undefined"
+	fi
+
 	# Check, if a Backup for VM exists
 	if grep -q $pve_vm_id <<< "${!snaps[@]}"
 	then
