@@ -147,9 +147,9 @@ check_each_pve_vm() {
 		return
 	fi
 
-	if [ -z "$getstorage"]
+	if [[ -z "$getstorage" ]]
 	then
-		warn "VMID: $pve_vm_id - $vmname - NO BACKUP STORAGE DEFINED IN POOL!"
+		debugmsg "VMID: $pve_vm_id - $vmname - NO BACKUP STORAGE DEFINED IN POOL!"
 		local getstorage="undefined"
 	fi
 
