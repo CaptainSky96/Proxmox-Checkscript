@@ -177,15 +177,15 @@ check_each_pve_vm() {
 			local scheduleage=0
 		fi
 
+		debugmsg "vmid: $pve_vm_id - Oldest Backup: $oldbackupage - Days:$(date -d @$oldestbackup +'%F %T')"
+		debugmsg "vmid: $pve_vm_id - Newest Backup: $newbackupage - Days:$(date -d @$newestbackup +'%F %T')"
+		debugmsg "vmid: $pve_vm_id - Amount of Backups: $countbackups"
+
 		# check if VM has Tag: 'critical'. if not, use minbakage
 		if ! grep -qw 'critical' <<< "$gettags"
 		then
 			newbackupage=$(( scheduleage + minbakage ))
 		fi
-
-		debugmsg "vmid: $pve_vm_id - Oldest Backup: $oldbackupage - Days:$(date -d @$oldestbackup +'%F %T')"
-		debugmsg "vmid: $pve_vm_id - Newest Backup: $newbackupage - Days:$(date -d @$newestbackup +'%F %T')"
-		debugmsg "vmid: $pve_vm_id - Amount of Backups: $countbackups"
 
 		# Check newbakage and warn, if last newest backup is too old
 		if [[ $gettemplate == 0 ]]
