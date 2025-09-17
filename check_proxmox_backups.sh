@@ -184,7 +184,7 @@ check_each_pve_vm() {
 		# check if VM has Tag: 'critical'. if not, use minbakage
 		if ! grep -qw 'critical' <<< "$gettags"
 		then
-			newbackupage=$(( scheduleage + minbakage ))
+			scheduleage=$(( scheduleage + minbakage ))
 		fi
 
 		# Check newbakage and warn, if last newest backup is too old
