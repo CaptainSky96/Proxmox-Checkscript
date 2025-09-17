@@ -187,6 +187,8 @@ check_each_pve_vm() {
 			scheduleage=$(( scheduleage + minbakage ))
 		fi
 
+		debugmsg "vmid: $pve_vm_id - scheduled age: $scheduleage"
+
 		# Check newbakage and warn, if last newest backup is too old
 		if [[ $gettemplate == 0 ]]
 		then
