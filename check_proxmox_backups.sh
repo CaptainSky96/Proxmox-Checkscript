@@ -181,6 +181,14 @@ check_each_pve_vm() {
 		debugmsg "vmid: $pve_vm_id - Newest Backup: $newbackupage - Days:$(date -d @$newestbackup +'%F %T')"
 		debugmsg "vmid: $pve_vm_id - Amount of Backups: $countbackups"
 
+		# check if VM has Tag: 'critical'. if not, use minbakage
+		if ! grep -qw 'critical' <<< "$gettags"
+		then
+			scheduleage=$(( scheduleage + minbakage ))
+		fi
+
+		debugmsg "vmid: $pve_vm_id - scheduled age: $scheduleage"
+
 		# Check newbakage and warn, if last newest backup is too old
 		if [[ $gettemplate == 0 ]]
 		then
@@ -245,7 +253,7 @@ check_each_pve_vm() {
 		then
 			if [[ $gettemplate == 1 ]]
 			then
-				warn "VMID: $pve_vm_id - $vmname - TEMPLATE-VM HAS NO BACKUP."
+				debugmsg "VMID: $pve_vm_id - $vmname - TEMPLATE-VM HAS NO BACKUP."
 			else
 				debugmsg "vmid: $pve_vm_id - $vmname - pool:$getpool - tags:$gettags - Ignoring Backup"
 			fi
