@@ -165,12 +165,6 @@ check_each_pve_vm() {
 		local oldbackupage=$(( (dte - oldestbackup) / 86400 ))
 		local newbackupage=$(( (dte - newestbackup) / 86400 ))
 
-		# check if VM has Tag: 'critical'. if not, use minbakage
-		if ! grep -qw 'critical' <<< "$gettags"
-		then
-			newbackupage=$(( newbackupage + minbakage ))
-		fi
-
 		# get time refer to schedule time
 		# if schedule time is in format 'Mon 12:00', then get last occurrence of this time
 		# else backup job runs daily
@@ -181,6 +175,12 @@ check_each_pve_vm() {
 			local scheduleage=$(( (dte - scheduletime) / 86400 ))
 		else
 			local scheduleage=0
+		fi
+
+		# check if VM has Tag: 'critical'. if not, use minbakage
+		if ! grep -qw 'critical' <<< "$gettags"
+		then
+			newbackupage=$(( scheduleage + minbakage ))
 		fi
 
 		debugmsg "vmid: $pve_vm_id - Oldest Backup: $oldbackupage - Days:$(date -d @$oldestbackup +'%F %T')"
