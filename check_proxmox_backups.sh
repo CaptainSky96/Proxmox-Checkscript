@@ -48,7 +48,8 @@ check_each_pbs_snap() {
 	debugmsg "bid: $snap_id - ${snapcomment[$snap_id]}"
 	if ! grep -q $snap_id <<< "${!vms[@]}"
 	then
-		warn "BID: $snap_id - ${snapcomment[$snap_id]} - ORPHANED BACKUP WITH NO VM."
+		local getstorage=$(echo ${snapstore[$snap_id]})
+		warn "BID: $snap_id - STORE: $getstorage - ${snapcomment[$snap_id]} - ORPHANED BACKUP WITH NO VM."
 	else
 		local vmhostname=$(echo ${vms[$snap_id]} | cut -d : -f1)
 		local vmtags=$(echo ${vms[$snap_id]} | cut -d : -f4-)
@@ -197,7 +198,7 @@ check_each_pve_vm() {
 			then
 				if [[ -z $getprotrected ]]
 				then
-					warn "VMID: $pve_vm_id - $vmname - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
+					warn "VMID: $pve_vm_id - $vmname - STORE: $getstorage - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
 				else
 					debugmsg "Tags: $gettags - Pool: $getpool - Ignoring Backup"
 					return
@@ -235,7 +236,7 @@ check_each_pve_vm() {
 			then
 				if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
 				then
-					warn "VMID: $pve_vm_id - $vmname - OLDEST BACKUP WITH 'nobackup', $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
+					debugmsg "VMID: $pve_vm_id - $vmname - OLDEST BACKUP WITH 'nobackup', $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
 				else
 					warn "VMID: $pve_vm_id - $vmname - OLDEST BACKUP IS $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
 				fi
