@@ -32,6 +32,7 @@ declare -a pve_json_storage				# PVE Storage Informations
 declare -i verbose=0					# Verbose / Debug Mode
 declare -i warncounter=0				# Warning Counter
 declare -i dte=$(date +%s)				# Date in seconds since epoch
+declare -i yte=$(date -d "yesterday" +%s)	# Yesterday for checking uptime VM
 declare -i ddays=$(date +%e)				# Day of month
 declare -i start_script=$SECONDS			# Start time of script
 declare -i MAX_THREAD_USAGE				# Maximum amount of multithreading
@@ -52,7 +53,7 @@ check_each_pbs_snap() {
 		warn "BID: $snap_id - STORE: $getstorage - ${snapcomment[$snap_id]} - ORPHANED BACKUP WITH NO VM."
 	else
 		local vmhostname=$(echo ${vms[$snap_id]} | cut -d : -f1)
-		local vmtags=$(echo ${vms[$snap_id]} | cut -d : -f4-)
+		local vmtags=$(echo ${vms[$snap_id]} | cut -d : -f5-)
 		local newestbackup=$(echo "${snaps[$snap_id]}" | tail -1)
 		local countbackups=$(wc -l <<< ${snaps[$snap_id]})
 		local lastbakhostname=$(jq -rc ".data[] | select(.\"backup-id\"==\"$snap_id\") | select(.\"backup-time\"==$newestbackup) | \"\\(.\"comment\")\"" <<< "${pbs_json_vms[@]}")
@@ -127,12 +128,14 @@ check_each_pve_vm() {
 	## Filter informations
 	# check if Name of VM equals Comment of Backup
 	local vmname=$(echo ${vms[$pve_vm_id]} | cut -d : -f1)
-	# check tags if 'nobackup' tags defined for vm.
-	local gettags=$(echo ${vms[$pve_vm_id]} | cut -d : -f4-)
 	# check pools. if 'pool' has 'nobackup' as comment.
 	local getpool=$(echo ${vms[$pve_vm_id]} | cut -d : -f2)
 	# check if vm is a template
 	local gettemplate=$(echo ${vms[$pve_vm_id]} | cut -d : -f3)
+	# checks uptime if vm is jounger than 24h, skip missing backup
+	local getuptime=$(echo ${vms[$pve_vm_id]} | cut -d : -f4)
+	# check tags if 'nobackup' or 'ignore' tags defined for vm
+	local gettags=$(echo ${vms[$pve_vm_id]} | cut -d : -f5-)
 	# check if vm has protected backup
 	local getprotrected=${snapprotected[$pve_vm_id]}
 	# get backup schedule time
@@ -150,7 +153,7 @@ check_each_pve_vm() {
 
 	if [[ -z "$getstorage" ]]
 	then
-		debugmsg "VMID: $pve_vm_id - $vmname - NO BACKUP STORAGE DEFINED IN POOL!"
+		debugmsg "VMID: $pve_vm_id - $vmname - NO BACKUP STORAGE DEFINED FOR THIS VM!"
 		local getstorage="undefined"
 	fi
 
@@ -165,6 +168,12 @@ check_each_pve_vm() {
 		# get diff between today and oldest / newest backup
 		local oldbackupage=$(( (dte - oldestbackup) / 86400 ))
 		local newbackupage=$(( (dte - newestbackup) / 86400 ))
+
+		if [[ "$getstorage" == "undefined" ]]
+		then
+			debugmsg "VMID: $pve_vm_id - $vmname - STORAGE TAKEN FROM EXISTING BACKUP."
+			local getstorage=$(echo ${snapstore[$pve_vm_id]})
+		fi
 
 		# get time refer to schedule time
 		# if schedule time is in format 'Mon 12:00', then get last occurrence of this time
@@ -250,6 +259,7 @@ check_each_pve_vm() {
 			fi
 		fi
 	else
+		local vmuptime=$(date -d "$getuptime seconds ago" +%s)
 		if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
 		then
 			if [[ $gettemplate == 1 ]]
@@ -258,6 +268,9 @@ check_each_pve_vm() {
 			else
 				debugmsg "vmid: $pve_vm_id - $vmname - pool:$getpool - tags:$gettags - Ignoring Backup"
 			fi
+		elif (( $vmuptime > $yte ))
+		then
+			debugmsg "vmid: $pve_vm_id - $vmname - VM WAS CREATED TODAY."
 		else
 			warn "VMID: $pve_vm_id - $vmname - MISSING BACKUP!"
 		fi
@@ -287,7 +300,7 @@ sort_pve_vms() {
 	# Get all VMs from PVE cluster
 	for qemu_id in $(jq -rc ".data[] | select(.type==\"qemu\") | (.vmid)" <<< "$pve_json_vms" | sort -n)
 	do
-		vms[$qemu_id]=$(jq -rc ".data[] | select(.vmid==$qemu_id) | \"\\(.name):\\(.pool):\\(.template):\\(.tags)\"" <<< "$pve_json_vms") 
+		vms[$qemu_id]=$(jq -rc ".data[] | select(.vmid==$qemu_id) | \"\\(.name):\\(.pool):\\(.template):\\(.uptime):\\(.tags)\"" <<< "$pve_json_vms") 
 		debugmsg "qemu_id: $qemu_id - ${vms[$qemu_id]}"
 	done
 	verbosemsg "PVE: Amount of VMs: $(wc -w <<< ${!vms[@]})"
