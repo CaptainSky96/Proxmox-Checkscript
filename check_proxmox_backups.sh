@@ -517,12 +517,12 @@ check_entries() {
 # WARN informations
 warn() {
 	warncounter=$(( $warncounter+1 ))
-	echo -e "\n> WARNING: $@"
+	echo -e "\nWARNING: $@"
 }
 
 # ERROR MSG & EXIT SCRIPT
 errormsg() {
-	echo -e "> ERROR: $@"
+	echo -e "ERROR: $@"
 	exit 1
 }
 
@@ -533,11 +533,11 @@ jqmsg() {
 
 # verbose logging: -v
 verbosemsg() {
-	[ $verbose -ge 1 ] && echo -e ">> VERBOSE: $@"
+	[ $verbose -ge 1 ] && echo -e "VERBOSE: $@"
 }
 # debug logging: -vv+
 debugmsg() {
-	[ $verbose -ge 2 ] && echo -e ">>> DEBUG: $@"
+	[ $verbose -ge 2 ] && echo -e "DEBUG: $@"
 }
 
 usage() { # for readable usage, function isn't written with auto indentation
