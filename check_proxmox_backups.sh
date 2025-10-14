@@ -209,8 +209,7 @@ check_each_pve_vm() {
 				then
 					warn "VMID: $pve_vm_id - $vmname - STORE: $getstorage - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
 				else
-					debugmsg "Tags: $gettags - Pool: $getpool - Ignoring Backup"
-					return
+					debugmsg "VMID: $pve_vm_id - $vmname - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring Backup"
 				fi	
 			fi
 
@@ -241,7 +240,7 @@ check_each_pve_vm() {
 				warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
 			fi
 			
-			if (( $oldbackupage > $oldbakage ))
+			if (( $oldbackupage > $oldbakage )) && [[ -z $getprotrected ]]
 			then
 				if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
 				then
