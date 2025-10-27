@@ -519,7 +519,7 @@ check_entries() {
 warn() {
 	warncounter=$(( $warncounter+1 ))
 	warnmsg+=("$@")
-	echo -e "\nWARNING: $@"
+	[ $finalsum -eq 0 ] && echo -e "\nWARNING: $@"
 }
 
 # ERROR MSG & EXIT SCRIPT
@@ -562,7 +562,7 @@ exit 1
 ## main ##
 # options #
 
-while getopts "hvc:s" opt
+while getopts "hvsc:" opt
 do
 	case $opt in
 		h)
@@ -596,5 +596,9 @@ fi
 
 if [[ $finalsum == 1 ]]
 then
-	echo -e "ALL WARNINGS\n===============\n${warnmsg[@]}\n==============="
+	echo -e "ALL WARNINGS\n==============="
+	for enty in "${warnmsg[@]}"
+	do
+		echo -e " $entry\n"
+	done
 fi
