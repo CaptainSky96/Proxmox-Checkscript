@@ -37,6 +37,8 @@ declare -i ddays=$(date +%e)				# Day of month
 declare -i start_script=$SECONDS			# Start time of script
 declare -i MAX_THREAD_USAGE				# Maximum amount of multithreading
 declare -a PIDS=()					# Array of process IDs for loops while sorting
+declare -a warnmsg					# Get all messages in array
+declare -i finalsum=0				# Check if final summary is wanted
 
 ### FUNCTIONS ###
 
@@ -516,6 +518,7 @@ check_entries() {
 # WARN informations
 warn() {
 	warncounter=$(( $warncounter+1 ))
+	warnmsg+=("$@")
 	echo -e "\nWARNING: $@"
 }
 
@@ -559,7 +562,7 @@ exit 1
 ## main ##
 # options #
 
-while getopts "hvc:" opt
+while getopts "hvc:s" opt
 do
 	case $opt in
 		h)
@@ -570,6 +573,9 @@ do
 			;;
 		c)
 			cluster=${OPTARG}
+			;;
+		s)
+			finalsum=1
 			;;
 	esac
 done
@@ -586,4 +592,9 @@ fi
 if [[ $warncounter -ne 0 ]]
 then
 	verbosemsg "Warnings: $warncounter"
+fi
+
+if [[ $finalsum == 1 ]]
+then
+	echo -e "ALL WARNINGS\n===============\n${warnmsg[@]}\n==============="
 fi
