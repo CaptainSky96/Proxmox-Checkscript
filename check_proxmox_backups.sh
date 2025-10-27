@@ -514,7 +514,18 @@ check_entries() {
 ### Output Options ###
 # WARN informations
 warn() {
-	echo -e "\nWARNING: $@"
+    # join all args into one string
+    local msg
+    msg="$(printf '%s ' "$@")"
+    msg="${msg%" "}"                       # remove trailing space
+
+    # replace newline and CR with single space, then squeeze multiple spaces
+    msg="${msg//$'\r'/ }"
+    msg="${msg//$'\n'/ }"
+    # optional: squeeze multiple spaces (uses external command)
+    msg="$(printf '%s' "$msg" | tr -s ' ')"
+
+    echo -e "\nWARNING: $msg"
 }
 
 # ERROR MSG & EXIT SCRIPT
