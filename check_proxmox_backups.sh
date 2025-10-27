@@ -30,15 +30,12 @@ declare -a pve_json_pools				# PVE Pools Informations
 declare -a pve_json_backups				# PVE Backup Informations
 declare -a pve_json_storage				# PVE Storage Informations
 declare -i verbose=0					# Verbose / Debug Mode
-declare -i warncounter=0				# Warning Counter
 declare -i dte=$(date +%s)				# Date in seconds since epoch
 declare -i yte=$(date -d "yesterday" +%s)	# Yesterday for checking uptime VM
 declare -i ddays=$(date +%e)				# Day of month
 declare -i start_script=$SECONDS			# Start time of script
 declare -i MAX_THREAD_USAGE				# Maximum amount of multithreading
 declare -a PIDS=()					# Array of process IDs for loops while sorting
-declare -a warnmsg					# Get all messages in array
-declare -i finalsum=0				# Check if final summary is wanted
 
 ### FUNCTIONS ###
 
@@ -517,9 +514,7 @@ check_entries() {
 ### Output Options ###
 # WARN informations
 warn() {
-	warncounter=$(( $warncounter+1 ))
-	warnmsg+=("$@")
-	[ $finalsum -eq 0 ] && echo -e "\nWARNING: $@"
+	echo -e "\nWARNING: $@"
 }
 
 # ERROR MSG & EXIT SCRIPT
@@ -562,7 +557,7 @@ exit 1
 ## main ##
 # options #
 
-while getopts "hvsc:" opt
+while getopts "hvc:" opt
 do
 	case $opt in
 		h)
@@ -574,9 +569,6 @@ do
 		c)
 			cluster=${OPTARG}
 			;;
-		s)
-			finalsum=1
-			;;
 	esac
 done
 shift $((OPTIND-1))
@@ -587,18 +579,4 @@ then
 	usage
 else
 	check_entries
-fi
-
-if [[ $warncounter -ne 0 ]]
-then
-	verbosemsg "Warnings: $warncounter"
-fi
-
-if [[ $finalsum == 1 ]]
-then
-	echo -e "ALL WARNINGS\n==============="
-	for enty in "${warnmsg[@]}"
-	do
-		echo -e " $entry\n"
-	done
 fi
