@@ -37,6 +37,7 @@ declare -i start_script=$SECONDS			# Start time of script
 declare -i MAX_THREAD_USAGE				# Maximum amount of multithreading
 declare -a PIDS=()					# Array of process IDs for loops while sorting
 declare -i nobackup					# Variable for 'nobackup' Tag
+declare -i critical					# Variable for critical VMs in Tag
 
 ### FUNCTIONS ###
 
@@ -157,15 +158,24 @@ check_each_pve_vm() {
 		local getstorage="undefined"
 	fi
 
+	local base="VMID: $pve_vm_id - $vmname"
+
 	if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
 	then
 		local nobackup=1
+		debugmsg "$base - nobackup Tag or in ignored Pool"
+	fi
+
+	if grep -qw 'critical' <<< "$gettags"
+	then
+		local critical=1
+		debugmsg "$base - critical VM"
 	fi
 
 	# Check, if a Backup for VM exists
 	if grep -q $pve_vm_id <<< "${!snaps[@]}"
 	then
-		debugmsg "vmid: $pve_vm_id - backup exists"
+		debugmsg "$base - backup exists"
 		# if backup for vm exists, get infos about oldest, newest and amount
 		local oldestbackup=$(echo "${snaps[$pve_vm_id]}" | head -1)
 		local newestbackup=$(echo "${snaps[$pve_vm_id]}" | tail -1)
@@ -176,7 +186,7 @@ check_each_pve_vm() {
 
 		if [[ "$getstorage" == "undefined" ]]
 		then
-			debugmsg "VMID: $pve_vm_id - $vmname - STORAGE TAKEN FROM EXISTING BACKUP."
+			debugmsg "$base - STORAGE TAKEN FROM EXISTING BACKUP."
 			local getstorage=$(echo ${snapstore[$pve_vm_id]})
 		fi
 
@@ -192,12 +202,12 @@ check_each_pve_vm() {
 			local scheduleage=0
 		fi
 
-		debugmsg "vmid: $pve_vm_id - Oldest Backup: $oldbackupage - Days:$(date -d @$oldestbackup +'%F %T')"
-		debugmsg "vmid: $pve_vm_id - Newest Backup: $newbackupage - Days:$(date -d @$newestbackup +'%F %T')"
-		debugmsg "vmid: $pve_vm_id - Amount of Backups: $countbackups"
+		debugmsg "$base - Oldest Backup: $oldbackupage - Days:$(date -d @$oldestbackup +'%F %T')"
+		debugmsg "$base - Newest Backup: $newbackupage - Days:$(date -d @$newestbackup +'%F %T')"
+		debugmsg "$base - Amount of Backups: $countbackups"
 
 		# check if VM has Tag: 'critical'. if not, use minbakage
-		if ! grep -qw 'critical' <<< "$gettags"
+		if ! (( $critical ))
 		then
 			scheduleage=$(( scheduleage + minbakage ))
 		fi
@@ -212,7 +222,12 @@ check_each_pve_vm() {
 			then
 				if [[ -z $getprotrected ]]
 				then
-					warn "VMID: $pve_vm_id - $vmname - STORE: $getstorage - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
+					if ! (( $critical ))
+					then
+						debugmsg "VMID: $pve_vm_id - $vmname - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring non critical Backup"
+					else
+						debugmsg "VMID: $pve_vm_id - $vmname - STORE: $getstorage - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
+					fi
 				else
 					debugmsg "VMID: $pve_vm_id - $vmname - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring Backup"
 				fi	
