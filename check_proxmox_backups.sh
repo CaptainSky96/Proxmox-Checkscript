@@ -36,6 +36,7 @@ declare -i ddays=$(date +%e)				# Day of month
 declare -i start_script=$SECONDS			# Start time of script
 declare -i MAX_THREAD_USAGE				# Maximum amount of multithreading
 declare -a PIDS=()					# Array of process IDs for loops while sorting
+declare -i nobackup					# Variable for 'nobackup' Tag
 
 ### FUNCTIONS ###
 
@@ -144,7 +145,7 @@ check_each_pve_vm() {
 	# get storage of backup
 	local getstorage=$(echo "${pool_schedule[$getpool]}" | cut -d '|' -f1)
 
-	if grep -q 'ignore' <<< "$gettags"
+	if grep -qw 'ignore' <<< "$gettags"
 	then
 		debugmsg "Ignoring $pve_vm_id"
 		return
@@ -154,6 +155,11 @@ check_each_pve_vm() {
 	then
 		debugmsg "VMID: $pve_vm_id - $vmname - NO BACKUP STORAGE DEFINED FOR THIS VM!"
 		local getstorage="undefined"
+	fi
+
+	if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
+	then
+		nobackup=1
 	fi
 
 	# Check, if a Backup for VM exists
@@ -202,7 +208,7 @@ check_each_pve_vm() {
 		if [[ $gettemplate == 0 ]]
 		then
 
-			if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
+			if (( $nobackup ))
 			then
 				if [[ -z $getprotrected ]]
 				then
@@ -210,38 +216,38 @@ check_each_pve_vm() {
 				else
 					debugmsg "VMID: $pve_vm_id - $vmname - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring Backup"
 				fi	
-			else
-				# get pruneage from pool or storage. if both exists, pool has priority
-				# if none exists, define default retention of 7 days
-				if [[ -n ${prune_backups[$getpool]} ]]
-				then
-					local pruneage=${prune_backups[$getpool]}
-					local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-					local retention=$(date -d @${prune_backups[$getpool]})
-				elif [[ -n ${prune_storage[$getstorage]} ]]
-				then
-					local pruneage=${prune_storage[$getstorage]}
-					local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-					local retention=$(date -d @${prune_storage[$getstorage]})
-				else
-					local pruneage=$(( dte - 604800 )) # 7 days ago
-					local oldbakage=7
-					local retention=$(date -d @${pruneage})
-				fi
-
-				debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
-				debugmsg "vmid: $pve_vm_id - pruneage: $pruneage - oldbakage: $oldbakage"
-				debugmsg "vmid: $pve_vm_id - oldbackupage: $oldbackupage"
-				
-				if (( $newbackupage > $scheduleage ))
-				then
-					warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
-				fi
 			fi
+
+			# get pruneage from pool or storage. if both exists, pool has priority
+			# if none exists, define default retention of 7 days
+			if [[ -n ${prune_backups[$getpool]} ]]
+			then
+				local pruneage=${prune_backups[$getpool]}
+				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
+				local retention=$(date -d @${prune_backups[$getpool]})
+			elif [[ -n ${prune_storage[$getstorage]} ]]
+			then
+				local pruneage=${prune_storage[$getstorage]}
+				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
+				local retention=$(date -d @${prune_storage[$getstorage]})
+			else
+				local pruneage=$(( dte - 604800 )) # 7 days ago
+				local oldbakage=7
+				local retention=$(date -d @${pruneage})
+			fi
+
+			debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
+			debugmsg "vmid: $pve_vm_id - pruneage: $pruneage - oldbakage: $oldbakage"
+			debugmsg "vmid: $pve_vm_id - oldbackupage: $oldbackupage"
 			
+			if (( $newbackupage > $scheduleage ))
+			then
+				warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
+			fi
+
 			if (( $oldbackupage > $oldbakage )) && [[ -z $getprotrected ]]
 			then
-				if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
+				if (( $nobackup ))
 				then
 					debugmsg "VMID: $pve_vm_id - $vmname - OLDEST BACKUP WITH 'nobackup', $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
 				else
@@ -258,7 +264,7 @@ check_each_pve_vm() {
 		fi
 	else
 		local vmuptime=$(date -d "$getuptime seconds ago" +%s)
-		if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
+		if (( $nobackup ))
 		then
 			if [[ $gettemplate == 1 ]]
 			then
