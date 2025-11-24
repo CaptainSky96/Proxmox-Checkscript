@@ -64,9 +64,11 @@ check_each_pbs_snap() {
 		local getprotrected=${snapprotected[$snap_id]}
 		local getstorage=$(echo ${snapstore[$snap_id]})
 
+		local base="BID: $snap_id - STORE: $getstorage - $vmhostname"
+
 		if grep -q 'ignore' <<< "$vmtags"
 		then
-			debugmsg "Ignoring $snap_id"
+			debugmsg "$base - Ignoring"
 			return
 		fi
 
@@ -74,23 +76,23 @@ check_each_pbs_snap() {
 		then
 			if [[ -z $getprotrected ]]
 			then
-				warn "BID: $snap_id - STORE: $getstorage - $vmhostname - TEMPLATE-VM HAS NO PROTECTED BACKUP!"
+				warn "$base - TEMPLATE-VM HAS NO PROTECTED BACKUP!"
 			else
 				if (( $countbackups > 1 ))
 				then
-					debugmsg "BID: $snap_id - STORE: $getstorage - $vmhostname - multiple backups from template vm"
+					debugmsg "$base - multiple backups from template vm"
 				else
-					debugmsg "bid: $snap_id - STORE: $getstorage - protected backup timestamp: $(date -d @$getprotrected +'%F %T')"
+					debugmsg "$base - protected backup timestamp: $(date -d @$getprotrected +'%F %T')"
 				fi
 			fi
 			if [[ "$vmhostname" != "$lastbakhostname" ]] || [[ -n "$oldbakhostnames" ]]
 			then
-				warn "BID: $snap_id - STORE: $getstorage - $vmhostname - $lastbakhostname - TEMPLATE-VM HOSTNAME DIFFERS FROM BACKUP!"
+				warn "$base - $lastbakhostname - TEMPLATE-VM HOSTNAME DIFFERS FROM BACKUP!"
 			fi
 		else
 			if [[ "$vmhostname" != "$lastbakhostname" ]]
 			then
-				warn "BID: $snap_id - STORE: $getstorage - $vmhostname - $lastbakhostname - HOSTNAME HAS CHANGED! POSSIBLE DATALEAKING!"
+				warn "$base - $lastbakhostname - HOSTNAME HAS CHANGED! POSSIBLE DATALEAKING!"
 			elif [[ -n "$oldbakhostnames" ]]
 			then
 				warn "BID: $snap_id - STORE: $getstorage - ${snapcomment[$snap_id]} - $oldbakhostnames - OLDER HOSTNAME DIFFERS! POSSIBLE DATALEAKING!"
@@ -145,20 +147,20 @@ check_each_pve_vm() {
 	local schedulecmt=$(echo "${pool_schedule[$getpool]}" | cut -d '|' -f2)
 	# get storage of backup
 	local getstorage=$(echo "${pool_schedule[$getpool]}" | cut -d '|' -f1)
+	# Set base for Messages
+	local base="VMID: $pve_vm_id - $vmname"
 
 	if grep -qw 'ignore' <<< "$gettags"
 	then
-		debugmsg "Ignoring $pve_vm_id"
+		debugmsg "$base - Ignoring"
 		return
 	fi
 
 	if [[ -z "$getstorage" ]]
 	then
-		debugmsg "VMID: $pve_vm_id - $vmname - NO BACKUP STORAGE DEFINED FOR THIS VM!"
+		debugmsg "$base - NO BACKUP STORAGE DEFINED FOR THIS VM!"
 		local getstorage="undefined"
 	fi
-
-	local base="VMID: $pve_vm_id - $vmname"
 
 	if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
 	then
@@ -212,7 +214,7 @@ check_each_pve_vm() {
 			scheduleage=$(( scheduleage + minbakage ))
 		fi
 
-		debugmsg "vmid: $pve_vm_id - scheduled age: $scheduleage"
+		debugmsg "$base - scheduled age: $scheduleage"
 
 		# Check newbakage and warn, if last newest backup is too old
 		if [[ $gettemplate == 0 ]]
@@ -224,12 +226,12 @@ check_each_pve_vm() {
 				then
 					if ! (( $critical ))
 					then
-						debugmsg "VMID: $pve_vm_id - $vmname - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring non critical Backup"
+						debugmsg "$base - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring non critical Backup"
 					else
-						debugmsg "VMID: $pve_vm_id - $vmname - STORE: $getstorage - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
+						warn "$base - STORE: $getstorage - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
 					fi
 				else
-					debugmsg "VMID: $pve_vm_id - $vmname - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring Backup"
+					debugmsg "$base - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring Backup"
 				fi	
 			fi
 
@@ -251,17 +253,17 @@ check_each_pve_vm() {
 				local retention=$(date -d @${pruneage})
 			fi
 
-			debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
-			debugmsg "vmid: $pve_vm_id - pruneage: $pruneage - oldbakage: $oldbakage"
-			debugmsg "vmid: $pve_vm_id - oldbackupage: $oldbackupage"
+			debugmsg "$base - Storage: $getstorage - Retention: $retention"
+			debugmsg "$base - pruneage: $pruneage - oldbakage: $oldbakage"
+			debugmsg "$base - oldbackupage: $oldbackupage"
 			
 			if (( $newbackupage > $scheduleage ))
 			then
 				if (( $nobackup ))
 				then
-					debugmsg "vmid: $pve_vm_id - $vmname - existing backup."
+					debugmsg "$base - existing backup."
 				else
-					warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
+					warn "$base - LAST BACKUP WAS $newbackupage DAYS AGO!"
 				fi
 			fi
 
@@ -269,17 +271,17 @@ check_each_pve_vm() {
 			then
 				if (( $nobackup ))
 				then
-					debugmsg "VMID: $pve_vm_id - $vmname - OLDEST BACKUP WITH 'nobackup', $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
+					debugmsg "$base - OLDEST BACKUP WITH 'nobackup', $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
 				else
-					warn "VMID: $pve_vm_id - $vmname - OLDEST BACKUP IS $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
+					warn "$base - OLDEST BACKUP IS $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
 				fi
 			fi
 		else
 			if [[ -z $getprotrected ]]
 			then
-				warn "VMID: $pve_vm_id - $vmname - TEMPLATE-VM HAS NO PROTECTED BACKUP."
+				warn "$base - TEMPLATE-VM HAS NO PROTECTED BACKUP."
 			else
-				debugmsg "vmid: $pve_vm_id - $vmname - pool:$getpool - tags:$gettags - template-vm:$(date -d @$getprotrected +'%F %T')"
+				debugmsg "$base - pool:$getpool - tags:$gettags - template-vm:$(date -d @$getprotrected +'%F %T')"
 			fi
 		fi
 	else
@@ -288,15 +290,15 @@ check_each_pve_vm() {
 		then
 			if [[ $gettemplate == 1 ]]
 			then
-				debugmsg "VMID: $pve_vm_id - $vmname - TEMPLATE-VM HAS NO BACKUP."
+				debugmsg "$base - TEMPLATE-VM HAS NO BACKUP."
 			else
-				debugmsg "vmid: $pve_vm_id - $vmname - pool:$getpool - tags:$gettags - Ignoring Backup"
+				debugmsg "$base - pool:$getpool - tags:$gettags - Ignoring Backup"
 			fi
 		elif (( $vmuptime > $yte ))
 		then
-			debugmsg "vmid: $pve_vm_id - $vmname - VM WAS CREATED TODAY."
+			debugmsg "$base - VM WAS CREATED TODAY."
 		else
-			warn "VMID: $pve_vm_id - $vmname - MISSING BACKUP!"
+			warn "$base - MISSING BACKUP!"
 		fi
 	fi
 }
