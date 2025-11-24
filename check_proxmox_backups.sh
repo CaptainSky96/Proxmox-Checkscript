@@ -210,33 +210,33 @@ check_each_pve_vm() {
 				else
 					debugmsg "VMID: $pve_vm_id - $vmname - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring Backup"
 				fi	
-			fi
-
-			# get pruneage from pool or storage. if both exists, pool has priority
-			# if none exists, define default retention of 7 days
-			if [[ -n ${prune_backups[$getpool]} ]]
-			then
-				local pruneage=${prune_backups[$getpool]}
-				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-				local retention=$(date -d @${prune_backups[$getpool]})
-			elif [[ -n ${prune_storage[$getstorage]} ]]
-			then
-				local pruneage=${prune_storage[$getstorage]}
-				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-				local retention=$(date -d @${prune_storage[$getstorage]})
 			else
-				local pruneage=$(( dte - 604800 )) # 7 days ago
-				local oldbakage=7
-				local retention=$(date -d @${pruneage})
-			fi
+				# get pruneage from pool or storage. if both exists, pool has priority
+				# if none exists, define default retention of 7 days
+				if [[ -n ${prune_backups[$getpool]} ]]
+				then
+					local pruneage=${prune_backups[$getpool]}
+					local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
+					local retention=$(date -d @${prune_backups[$getpool]})
+				elif [[ -n ${prune_storage[$getstorage]} ]]
+				then
+					local pruneage=${prune_storage[$getstorage]}
+					local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
+					local retention=$(date -d @${prune_storage[$getstorage]})
+				else
+					local pruneage=$(( dte - 604800 )) # 7 days ago
+					local oldbakage=7
+					local retention=$(date -d @${pruneage})
+				fi
 
-			debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
-			debugmsg "vmid: $pve_vm_id - pruneage: $pruneage - oldbakage: $oldbakage"
-			debugmsg "vmid: $pve_vm_id - oldbackupage: $oldbackupage"
-			
-			if (( $newbackupage > $scheduleage ))
-			then
-				warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
+				debugmsg "vmid: $pve_vm_id - Storage: $getstorage - Retention: $retention"
+				debugmsg "vmid: $pve_vm_id - pruneage: $pruneage - oldbakage: $oldbakage"
+				debugmsg "vmid: $pve_vm_id - oldbackupage: $oldbackupage"
+				
+				if (( $newbackupage > $scheduleage ))
+				then
+					warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
+				fi
 			fi
 			
 			if (( $oldbackupage > $oldbakage )) && [[ -z $getprotrected ]]
