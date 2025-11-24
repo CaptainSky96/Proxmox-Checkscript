@@ -242,7 +242,12 @@ check_each_pve_vm() {
 			
 			if (( $newbackupage > $scheduleage ))
 			then
-				warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
+				if (( $nobackup ))
+				then
+					debugmsg "vmid: $pve_vm_id - $vmname - existing backup."
+				else
+					warn "VMID: $pve_vm_id - $vmname - LAST BACKUP WAS $newbackupage DAYS AGO!"
+				fi
 			fi
 
 			if (( $oldbackupage > $oldbakage )) && [[ -z $getprotrected ]]
