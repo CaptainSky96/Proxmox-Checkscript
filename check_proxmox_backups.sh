@@ -159,7 +159,7 @@ check_each_pve_vm() {
 
 	if grep -qw 'nobackup' <<< "$gettags" || grep -qw "$getpool" <<< "${ignorepool[@]}"
 	then
-		nobackup=1
+		local nobackup=1
 	fi
 
 	# Check, if a Backup for VM exists
