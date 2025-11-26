@@ -253,6 +253,7 @@ check_each_pve_vm() {
 			then
 				warn "$base - TEMPLATE-VM HAS NO PROTECTED BACKUP."
 			fi
+		fi
 	else
 		local vmuptime=$(date -d "$getuptime seconds ago" +%s)
 		if ! (( $nobackup ))
