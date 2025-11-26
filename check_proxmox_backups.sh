@@ -212,14 +212,6 @@ check_each_pve_vm() {
 		debugmsg "$base - scheduled age: $scheduleage"
 
 		# Check newbakage and warn, if last newest backup is too old
-		if [[ $gettemplate == 1 ]]
-		then
-			if [[ -z $getprotrected ]]
-			then
-				warn "$base - TEMPLATE-VM HAS NO PROTECTED BACKUP."
-			fi
-		fi
-
 		# get pruneage from pool or storage. if both exists, pool has priority
 		# if none exists, define default retention of 7 days
 		if [[ -n ${prune_backups[$getpool]} ]]
@@ -256,7 +248,11 @@ check_each_pve_vm() {
 			then
 				warn "$base - OLDEST BACKUP: $oldbackupage DAYS OLD. EXISTING: $countbackups. EXPECTED: $backupamount. RETENTION: $retention. CHECK RETENTION POLICY!"
 			fi
-		fi
+		else
+			if [[ -z $getprotrected ]]
+			then
+				warn "$base - TEMPLATE-VM HAS NO PROTECTED BACKUP."
+			fi
 	else
 		local vmuptime=$(date -d "$getuptime seconds ago" +%s)
 		if ! (( $nobackup ))
