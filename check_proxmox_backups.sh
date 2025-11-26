@@ -18,7 +18,9 @@ declare -i storename					# Store Name of Backup Storage
 declare -a ignorepool					# Pools with comment 'nobackup'
 declare -A pool_schedule				# Schedule of Pools
 declare -A prune_backups				# Prune Backups of Pools with own scheduling
+declare -A poolbackups					# Amount of Backups that should have each VM, given by pool
 declare -A prune_storage				# Prune Backups of Storage with standard Retention Policy
+declare -A storagebackups				# Amount of Backups that should have each VM, given by storage
 declare -a pvecluster					# PVE Cluster Informations
 declare -a pbstokens					# PBS Tokens for each PBS Server
 declare -a pbsservers					# PBS Servers with URL
@@ -63,10 +65,11 @@ check_each_pbs_snap() {
 		local gettemplate=$(echo ${vms[$snap_id]} | cut -d : -f3)
 		local getprotrected=${snapprotected[$snap_id]}
 		local getstorage=$(echo ${snapstore[$snap_id]})
+		local getpool=$(echo ${vms[$snap_id]} | cut -d : -f2)
 
 		local base="BID: $snap_id - STORE: $getstorage - $vmhostname"
 
-		if grep -q 'ignore' <<< "$vmtags"
+		if grep -qw 'ignore' <<< "$vmtags"
 		then
 			debugmsg "$base - Ignoring"
 			return
@@ -77,17 +80,11 @@ check_each_pbs_snap() {
 			if [[ -z $getprotrected ]]
 			then
 				warn "$base - TEMPLATE-VM HAS NO PROTECTED BACKUP!"
-			else
-				if (( $countbackups > 1 ))
-				then
-					debugmsg "$base - multiple backups from template vm"
-				else
-					debugmsg "$base - protected backup timestamp: $(date -d @$getprotrected +'%F %T')"
-				fi
 			fi
+
 			if [[ "$vmhostname" != "$lastbakhostname" ]] || [[ -n "$oldbakhostnames" ]]
 			then
-				warn "$base - $lastbakhostname - TEMPLATE-VM HOSTNAME DIFFERS FROM BACKUP!"
+				warn "$base - $lastbakhostname - TEMPLATE-VM HOSTNAME DIFFERS FROM BACKUP! POSSIBLE DATALEAKING!"
 			fi
 		else
 			if [[ "$vmhostname" != "$lastbakhostname" ]]
@@ -96,8 +93,6 @@ check_each_pbs_snap() {
 			elif [[ -n "$oldbakhostnames" ]]
 			then
 				warn "BID: $snap_id - STORE: $getstorage - ${snapcomment[$snap_id]} - $oldbakhostnames - OLDER HOSTNAME DIFFERS! POSSIBLE DATALEAKING!"
-			else
-				debugmsg "bid: $snap_id - STORE: $getstorage - $lastbakhostname"
 			fi
 		fi
 	fi
@@ -217,88 +212,66 @@ check_each_pve_vm() {
 		debugmsg "$base - scheduled age: $scheduleage"
 
 		# Check newbakage and warn, if last newest backup is too old
-		if [[ $gettemplate == 0 ]]
+		if [[ $gettemplate == 1 ]]
 		then
-
-			if (( $nobackup ))
-			then
-				if [[ -z $getprotrected ]]
-				then
-					if ! (( $critical ))
-					then
-						debugmsg "$base - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring non critical Backup"
-					else
-						warn "$base - STORE: $getstorage - EXISTING BACKUP WITH TAG / WITHIN POOL 'NOBACKUP'"
-					fi
-				else
-					debugmsg "$base - Store: $getstorage - Tags: $gettags - Pool: $getpool - Ignoring Backup"
-				fi	
-			fi
-
-			# get pruneage from pool or storage. if both exists, pool has priority
-			# if none exists, define default retention of 7 days
-			if [[ -n ${prune_backups[$getpool]} ]]
-			then
-				local pruneage=${prune_backups[$getpool]}
-				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-				local retention=$(date -d @${prune_backups[$getpool]})
-			elif [[ -n ${prune_storage[$getstorage]} ]]
-			then
-				local pruneage=${prune_storage[$getstorage]}
-				local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-				local retention=$(date -d @${prune_storage[$getstorage]})
-			else
-				local pruneage=$(( dte - 604800 )) # 7 days ago
-				local oldbakage=7
-				local retention=$(date -d @${pruneage})
-			fi
-
-			debugmsg "$base - Storage: $getstorage - Retention: $retention"
-			debugmsg "$base - pruneage: $pruneage - oldbakage: $oldbakage"
-			debugmsg "$base - oldbackupage: $oldbackupage"
-			
-			if (( $newbackupage > $scheduleage ))
-			then
-				if (( $nobackup ))
-				then
-					debugmsg "$base - existing backup."
-				else
-					warn "$base - LAST BACKUP WAS $newbackupage DAYS AGO!"
-				fi
-			fi
-
-			if (( $oldbackupage > $oldbakage )) && [[ -z $getprotrected ]]
-			then
-				if (( $nobackup ))
-				then
-					debugmsg "$base - OLDEST BACKUP WITH 'nobackup', $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
-				else
-					warn "$base - OLDEST BACKUP IS $oldbackupage DAYS OLD. CHECK RETENTION POLICY!"
-				fi
-			fi
-		else
 			if [[ -z $getprotrected ]]
 			then
 				warn "$base - TEMPLATE-VM HAS NO PROTECTED BACKUP."
-			else
-				debugmsg "$base - pool:$getpool - tags:$gettags - template-vm:$(date -d @$getprotrected +'%F %T')"
 			fi
+		fi
+
+		# get pruneage from pool or storage. if both exists, pool has priority
+		# if none exists, define default retention of 7 days
+		if [[ -n ${prune_backups[$getpool]} ]]
+		then
+			local pruneage=${prune_backups[$getpool]}
+			local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
+			local retention=$(date -d @${prune_backups[$getpool]})
+			local backupamount=${poolbackups[$getpool]}
+		elif [[ -n ${prune_storage[$getstorage]} ]]
+		then
+			local pruneage=${prune_storage[$getstorage]}
+			local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
+			local retention=$(date -d @${prune_storage[$getstorage]})
+			local backupamount=${storagebackups[$getstorage]}
+		else
+			local pruneage=$(( dte - oldbakage ))
+			local retention=$(date -d @${pruneage})
+		fi
+
+		debugmsg "$base - Storage: $getstorage - Retention: $retention"
+		debugmsg "$base - pruneage: $pruneage - oldbakage: $oldbakage"
+		debugmsg "$base - oldbackupage: $oldbackupage"
+		debugmsg "$base - Amount: $countbackups - Expected: $backupamount"
+		
+		if (( $newbackupage > $scheduleage ))
+		then
+			if ! (( $nobackup ))
+			then
+				warn "$base - LAST BACKUP WAS $newbackupage DAYS AGO!"
+			fi
+		fi
+
+		if (( $oldbackupage > $oldbakage ))
+		then
+			warn "$base - OLDEST BACKUP: $oldbackupage DAYS OLD. EXISTING: $countbackups. EXPECTED: $backupamount. RETENTION: $retention. CHECK RETENTION POLICY!"
 		fi
 	else
 		local vmuptime=$(date -d "$getuptime seconds ago" +%s)
-		if (( $nobackup ))
+		if ! (( $nobackup ))
 		then
 			if [[ $gettemplate == 1 ]]
 			then
-				debugmsg "$base - TEMPLATE-VM HAS NO BACKUP."
-			else
-				debugmsg "$base - pool:$getpool - tags:$gettags - Ignoring Backup"
+				warn "$base - TEMPLATE-VM HAS NO BACKUP."
 			fi
-		elif (( $vmuptime > $yte ))
-		then
-			debugmsg "$base - VM WAS CREATED TODAY."
+			if (( $vmuptime > $yte ))
+			then
+				debugmsg "$base - VM WAS CREATED TODAY."
+			else
+				warn "$base - MISSING BACKUP!"
+			fi
 		else
-			warn "$base - MISSING BACKUP!"
+			debugmsg "$base - pool:$getpool - tags:$gettags - nobackup tag"
 		fi
 	fi
 }
@@ -350,36 +323,47 @@ sort_pve_vms() {
 	for pool_id in $(jq -rc '.data[] | select(has("prune-backups")) | .pool' <<< "$pve_json_backups")
 	do
 		local poolprunetimer=()
+		local backupcounter=0
+		local value=0
 		# jq -rc '.data[] | select(.pool=="697536-TS") | ."prune-backups" | to_entries | .[] | "\(.key)=\(.value)"'
 		local poolprune=$(jq -rc ".data[] | select(.pool==\"$pool_id\") | .\"prune-backups\" | to_entries | .[] | \"\\(.key)=\\(.value)\"" <<< "$pve_json_backups")
 		for pt in $poolprune # for prunetime in all existing prunetimes
 		do
-			[[ $pt =~ daily ]] && poolprunetimer+=("$(echo $pt | cut -d = -f2) days ago") # keep-daily
-			[[ $pt =~ weekly ]] && poolprunetimer+=("$(echo $pt | cut -d = -f2) weeks ago") # keep-weekly
-			[[ $pt =~ monthly ]] && poolprunetimer+=("$(echo $pt | cut -d = -f2) months ago") # keep-monthly
-			[[ $pt =~ yearly ]] && poolprunetimer+=("$(echo $pt | cut -d = -f2) years ago") # keep-yearly
+			value=$(echo $pt | cut -d = -f2)
+			[[ $pt =~ daily ]] && poolprunetimer+=("$value days ago") # keep-daily
+			[[ $pt =~ weekly ]] && poolprunetimer+=("$value weeks ago") # keep-weekly
+			[[ $pt =~ monthly ]] && poolprunetimer+=("$value months ago") # keep-monthly
+			[[ $pt =~ yearly ]] && poolprunetimer+=("$value years ago") # keep-yearly
+			backupcounter=$((backupcounter + value))
 		done
 		prune_backups[$pool_id]=$(date -d "${poolprunetimer[*]}" +%s)
-		debugmsg "pool_id: $pool_id - Prune Backups: ${prune_backups[$pool_id]}"
+		poolbackups[$pool_id]=$backupcounter
+		debugmsg "pool_id: $pool_id - Prune Backups: $(date -d @${prune_backups[$pool_id]}) - Amount: ${poolbackups[$pool_id]}"
 	done
 
 	# Get Backup Storages with the standard Retention Policy
 	for storage in $(jq -rc '.data[] | select(.content=="backup") | .storage' <<< "$pve_json_storage")
 	do
 		local storageprunetimer=()
+		local backupcounter=0
+		local value=0
 		local storageprune=$(jq -rc ".data[] | select(.storage==\"$storage\") | .\"prune-backups\"" <<< "$pve_json_storage")
 		IFS=,
 		for pt in $storageprune # for prunetime in all existing prunetimes
 		do
-			[[ $pt =~ daily ]] && storageprunetimer+=("$(echo $pt | cut -d = -f2) days ago") # keep-daily
-			[[ $pt =~ weekly ]] && storageprunetimer+=("$(echo $pt | cut -d = -f2) weeks ago") # keep-weekly
-			[[ $pt =~ monthly ]] && storageprunetimer+=("$(echo $pt | cut -d = -f2) months ago") # keep-monthly
-			[[ $pt =~ yearly ]] && storageprunetimer+=("$(echo $pt | cut -d = -f2) years ago") # keep-yearly
+			value=$(echo $pt | cut -d = -f2)
+			[[ $pt =~ daily ]] && storageprunetimer+=("$value days ago") # keep-daily
+			[[ $pt =~ weekly ]] && storageprunetimer+=("$value weeks ago") # keep-weekly
+			[[ $pt =~ monthly ]] && storageprunetimer+=("$value months ago") # keep-monthly
+			[[ $pt =~ yearly ]] && storageprunetimer+=("$value years ago") # keep-yearly
+			backupcounter=$((backupcounter + value))
 		done
 		IFS=$'\n'
 		prune_storage[$storage]=$(date -d "${storageprunetimer[*]}" +%s)
-		debugmsg "storage: $storage - Prune Backups: ${prune_storage[$storage]}"
+		storagebackups[$storage]=$backupcounter
+		debugmsg "storage: $storage - Prune Backups: $(date -d @${prune_storage[$storage]}) - Amount: ${storagebackups[$storage]}"
 	done
+	unset IFS
 }
 
 # Sort Backup infos
@@ -527,7 +511,7 @@ check_entries() {
 	debugmsg "curl_pve_maxtime: $curl_pve_maxtime"
 	debugmsg "curl_pbs_maxtime: ${curl_pbs_maxtime[@]}"
 
-	if [[ -z "${pvecluster[@]}" ]] || [[ -z "${pbsservers[@]}" ]] || [[ -z "${pbstokens[@]}" ]] || [[ -z "$curl_pve_maxtime" ]] || [[ -z "${curl_pbs_maxtime[@]}" ]]
+	if [[ -z "${pvecluster[@]}" ]] || [[ -z "${pbsservers[@]}" ]] || [[ -z "${pbstokens[@]}" ]] || [[ -z "$curl_pve_maxtime" ]] || [[ -z "${curl_pbs_maxtime[@]}" ]] || [[ -z "$minbakage" ]] || [[ -z "$oldbakage" ]]
 	then
 		errormsg "$cluster: $configfile - not usable or missing variable. pls check configfile."
 	elif [[ ${#pbsservers[@]} -ne ${#curl_pbs_maxtime[@]} ]]
