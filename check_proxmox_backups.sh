@@ -235,8 +235,7 @@ check_each_pve_vm() {
 			local retention=$(date -d @${prune_storage[$getstorage]})
 			local backupamount=${storagebackups[$getstorage]}
 		else
-			local pruneage=$(( dte - oldbakage ))
-			local retention=$(date -d @${pruneage})
+			local retention=$(date -d "$oldbakage days ago")
 		fi
 
 		debugmsg "$base - Storage: $getstorage - Retention: $retention"
@@ -244,17 +243,19 @@ check_each_pve_vm() {
 		debugmsg "$base - oldbackupage: $oldbackupage"
 		debugmsg "$base - Amount: $countbackups - Expected: $backupamount"
 		
-		if (( $newbackupage > $scheduleage ))
+		if [[ $gettemplate == 0 ]]
 		then
-			if ! (( $nobackup ))
+			if (( $newbackupage > $scheduleage ))
 			then
-				warn "$base - LAST BACKUP WAS $newbackupage DAYS AGO!"
+				if ! (( $nobackup ))
+				then
+					warn "$base - LAST BACKUP WAS $newbackupage DAYS AGO!"
+				fi
 			fi
-		fi
-
-		if (( $oldbackupage > $oldbakage ))
-		then
-			warn "$base - OLDEST BACKUP: $oldbackupage DAYS OLD. EXISTING: $countbackups. EXPECTED: $backupamount. RETENTION: $retention. CHECK RETENTION POLICY!"
+			if (( $oldbackupage > $oldbakage ))
+			then
+				warn "$base - OLDEST BACKUP: $oldbackupage DAYS OLD. EXISTING: $countbackups. EXPECTED: $backupamount. RETENTION: $retention. CHECK RETENTION POLICY!"
+			fi
 		fi
 	else
 		local vmuptime=$(date -d "$getuptime seconds ago" +%s)
@@ -334,10 +335,10 @@ sort_pve_vms() {
 			[[ $pt =~ weekly ]] && poolprunetimer+=("$value weeks ago") # keep-weekly
 			[[ $pt =~ monthly ]] && poolprunetimer+=("$value months ago") # keep-monthly
 			[[ $pt =~ yearly ]] && poolprunetimer+=("$value years ago") # keep-yearly
-			backupcounter=$((backupcounter + value))
+			backupcounter=$(( backupcounter + value ))
 		done
 		prune_backups[$pool_id]=$(date -d "${poolprunetimer[*]}" +%s)
-		poolbackups[$pool_id]=$backupcounter
+		poolbackups[$pool_id]="$backupcounter"
 		debugmsg "pool_id: $pool_id - Prune Backups: $(date -d @${prune_backups[$pool_id]}) - Amount: ${poolbackups[$pool_id]}"
 	done
 
@@ -356,11 +357,11 @@ sort_pve_vms() {
 			[[ $pt =~ weekly ]] && storageprunetimer+=("$value weeks ago") # keep-weekly
 			[[ $pt =~ monthly ]] && storageprunetimer+=("$value months ago") # keep-monthly
 			[[ $pt =~ yearly ]] && storageprunetimer+=("$value years ago") # keep-yearly
-			backupcounter=$((backupcounter + value))
+			backupcounter=$(( backupcounter + value ))
 		done
 		IFS=$'\n'
 		prune_storage[$storage]=$(date -d "${storageprunetimer[*]}" +%s)
-		storagebackups[$storage]=$backupcounter
+		storagebackups[$storage]="$backupcounter"
 		debugmsg "storage: $storage - Prune Backups: $(date -d @${prune_storage[$storage]}) - Amount: ${storagebackups[$storage]}"
 	done
 	unset IFS
