@@ -295,7 +295,7 @@ sort_pve_vms() {
 	verbosemsg "Sorting PVE VMs in Array, checking pools..."
 
 	# Get all VMs from PVE cluster
-	for qemu_id in $(jq -rc '.data[] | select(.type=="qemu") | .vmid' <<< "$pve_json_vms" | sort -n)
+	for qemu_id in $(jq -rc '.data[] | select(.type=="qemu" or .type=="lxc") | .vmid' <<< "$pve_json_vms" | sort -n)
 	do
 		vms[$qemu_id]=$(jq -rc ".data[] | select(.vmid==$qemu_id) | \"\\(.name):\\(.pool):\\(.template):\\(.uptime):\\(.tags)\"" <<< "$pve_json_vms") 
 		debugmsg "qemu_id: $qemu_id - ${vms[$qemu_id]}"
@@ -422,9 +422,6 @@ get_pve_cluster() {
 	pve_json_pools=$(curl --max-time "$curl_pve_maxtime" -ksS -H "Authorization: PVEAPIToken=${pvecluster[1]}" --url "$pve_url_pools")
 	pve_json_backups=$(curl --max-time "$curl_pve_maxtime" -ksS -H "Authorization: PVEAPIToken=${pvecluster[1]}" --url "$pve_url_backups")
 	pve_json_storage=$(curl --max-time "$curl_pve_maxtime" -ksS -H "Authorization: PVEAPIToken=${pvecluster[1]}" --url "$pve_url_storage")
-
-	jqmsg "${pve_json_vms[@]}"
-	exit 2
 }
 
 # Get all Backup infos
