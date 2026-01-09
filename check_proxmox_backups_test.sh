@@ -436,6 +436,9 @@ get_pbs_server() {
 		pbs_json_vms+=($(echo $pbs_json | jq ".data[] += {\"storename\":\"$storename\"}"))
 		debugmsg "URL: $pbs_url - Storage: $storename"
 	done
+
+	jqmsg "${pbs_json_vms[@]}"
+	exit 2
 	
 }
 
