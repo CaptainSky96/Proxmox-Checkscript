@@ -295,7 +295,7 @@ sort_pve_vms() {
 	verbosemsg "Sorting PVE VMs in Array, checking pools..."
 
 	# Get all VMs from PVE cluster
-	for qemu_id in $(jq -rc ".data[] | select(.type==\"qemu\") | (.vmid)" <<< "$pve_json_vms" | sort -n)
+	for qemu_id in $(jq -rc '.data[] | select(.type=="qemu" or .type=="lxc") | .vmid' <<< "$pve_json_vms" | sort -n | uniq)
 	do
 		vms[$qemu_id]=$(jq -rc ".data[] | select(.vmid==$qemu_id) | \"\\(.name):\\(.pool):\\(.template):\\(.uptime):\\(.tags)\"" <<< "$pve_json_vms") 
 		debugmsg "qemu_id: $qemu_id - ${vms[$qemu_id]}"
@@ -382,7 +382,7 @@ sort_pbs_snaps() {
     local job_count=0
     local tmpdir=$(mktemp -d)
 
-    for backup_id in $(jq -rc '.data[]."backup-id"' <<< "${pbs_json_vms[@]}" | sort -n | uniq)
+    for backup_id in $(jq -rc '.data[] | select(."backup-type"=="vm" or ."backup-type"=="ct") | ."backup-id"' <<< "${pbs_json_vms[@]}" | sort -n | uniq)
     do
         sort_pbs_backup "$backup_id" "$tmpdir" &
         ((job_count++))
