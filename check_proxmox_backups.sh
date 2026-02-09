@@ -9,6 +9,7 @@
 ## Declaring Arrays / Dictionaries ##
 declare -r configfile=/etc/sysconfig/check_proxmox_backups.conf	# Config file for script
 declare -a pbs_json_vms					# Backup Informations from all pbs Servers in Array variable
+declare -a dt_json_vms					# Backup Datastore information
 declare -A vms						# VM Maschines of productive proxmox
 declare -A snaps					# Backup IDs of Store 1 + Store 21
 declare -A snapcomment					# Backup Comment (Name of VM) of Store 1
@@ -40,6 +41,7 @@ declare -i MAX_THREAD_USAGE				# Maximum amount of multithreading
 declare -a PIDS=()					# Array of process IDs for loops while sorting
 declare -i nobackup					# Variable for 'nobackup' Tag
 declare -i critical					# Variable for critical VMs in Tag
+declare -i dtonly=0					# Variable, if dataonly is requested
 
 ### FUNCTIONS ###
 
@@ -433,7 +435,7 @@ get_pbs_server() {
 		local pbs_url="${pbsservers[$pbs_srv]}"
 		local storename=$(echo "$pbs_url" | grep -Eo 'store[0-9]+')
 		local pbs_json=$(curl --max-time "${curl_pbs_maxtime[$pbs_srv]}" -ksS -H "Authorization: PBSAPIToken=${pbstokens[$pbs_srv]}" --url "$pbs_url")
-		pbs_json_vms+=($(echo $pbs_json | jq ".data[] += {\"storename\":\"$storename\"}"))
+		pbs_json_vms+=("$(echo $pbs_json | jq ".data[] += {\"storename\":\"$storename\"}")")
 		debugmsg "URL: $pbs_url - Storage: $storename"
 	done
 	
@@ -484,6 +486,30 @@ get_and_sort() {
 	verbosemsg "Overall duration took: $duration seconds"
 }
 
+# GET DATASTORE INFORMATIONS ONLY AND EXIT
+get_datastores_only() {
+
+	verbosemsg "Getting PBS: Backup Server information.."
+
+	for pbs_srv in ${!pbsservers[@]}
+	do
+		local dt_full_url="${pbsservers[$pbs_srv]}"
+		local dt_url="${dt_full_url%%store[0-9]*}"
+		local dt_half_srv="${dt_full_url%%\.marcant*}"
+		local dt_srv="${dt_half_srv#*://}"
+		local dt_json=$(curl --max-time "${curl_pbs_maxtime[$pbs_srv]}" -ksS -H "Authorization: PBSAPIToken=${pbstokens[$pbs_srv]}" --url "$dt_url")
+		dt_json_vms+=("$(echo $dt_json | jq ".data[] += {\"servername\":\"$dt_srv\"}")")
+		debugmsg "FULL: $dt_full_url"
+		debugmsg "SHORT: $dt_url"
+		debugmsg "SERVER: $dt_srv"
+	done
+
+	for dt in "${dt_json_vms[@]}"
+	do
+		jqmsg "$(jq -rc '.data[] | "\(.servername):\(.store):\(.comment)"' <<< "$dt" | sort -V | column -s: -t)"
+	done
+}
+
 # Checking Entries before picking information through curl
 check_entries() {
 
@@ -516,7 +542,12 @@ check_entries() {
 	then
 		errormsg "$cluster: $configfile - amount of pbs servers: ${#pbsservers[@]} and ${#curl_pbs_maxtime[@]} not equal. pls check configfile."
 	else
-		get_and_sort
+		if [[ $dtonly -eq 1 ]]
+		then
+			get_datastores_only
+		else
+			get_and_sort
+		fi
 	fi
 
 }
@@ -565,6 +596,7 @@ Usage: $0 -c <clusterXX> [-h | -v]
   -h : help
   -c : cluster, to use
   -v : 1x: verbose 2x: debug
+  -d : get datastores with comment only
  Examples:
  $0 -h
  $0 -c cluster01 -v
@@ -578,7 +610,7 @@ exit 1
 ## main ##
 # options #
 
-while getopts "hvc:" opt
+while getopts "hvdc:" opt
 do
 	case $opt in
 		h)
@@ -586,6 +618,9 @@ do
 			;;
 		v)
 			verbose=$(( $verbose + 1 ))
+			;;
+		d)
+			dtonly=1
 			;;
 		c)
 			cluster=${OPTARG}
