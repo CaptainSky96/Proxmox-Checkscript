@@ -42,6 +42,7 @@ declare -a PIDS=()					# Array of process IDs for loops while sorting
 declare -i nobackup					# Variable for 'nobackup' Tag
 declare -i critical					# Variable for critical VMs in Tag
 declare -i dtonly=0					# Variable, if dataonly is requested
+declare -i manually=0				# Variable, if a manually request is needed
 
 ### FUNCTIONS ###
 
@@ -510,6 +511,40 @@ get_datastores_only() {
 	done
 }
 
+get_manually_info() {
+
+	[[ "$apisrv" == "PVE" || "$apisrv" == "PBS" ]] || ( echo "API Server: $apisrv - not correct defined.." ; exit 1 )
+
+	case $apisrv in
+		"PVE")
+			local pre_url="${pvecluster[0]}"
+			infomsg -n "Path for $apisrv API: "
+			read apipath
+			local apiurl="$pre_url/$apipath"
+			local pve_api_info=$(curl --max-time "$curl_pve_maxtime" -ksS -H "Authorization: PVEAPIToken=${pvecluster[1]}" --url "$apiurl")
+			[ -t 1 ] && jq '.' <<< "$pve_api_info" || echo "$pve_api_info"
+			;;
+		"PBS")
+			local pbscount=${#pbsservers[@]}
+			infomsg "Amount of PBS Server: $pbscount\n$(for (( i=0 ; i < $pbscount ; i++ )); do echo -e "$i: ${pbsservers[$i]%%:8007*}"; done)"
+			infomsg -n "Use number for set your choice [0-9]: "
+			read pbsnum
+			infomsg ""
+			infomsg -n "Path for $apisrv API: "
+			read apipath
+			if [[ -n "${pbsservers[$pbsnum]}" ]]
+			then
+				local pre_url=${pbsservers[$pbsnum]%%admin*}
+				local apiurl="$pre_url/$apipath"
+				local pbs_api_info=$(curl --max-time "${curl_pbs_maxtime[$pbsnum]}" -ksS -H "Authorization: PBSAPIToken=${pbstokens[$pbsnum]}" --url "$apiurl")
+				[ -t 1 ] && jq '.' <<< "$pbs_api_info" || echo "$pbs_api_info"
+			else
+				infomsg "No good number.."
+			fi
+			;;
+	esac
+}
+
 # Checking Entries before picking information through curl
 check_entries() {
 
@@ -545,6 +580,15 @@ check_entries() {
 		if [[ $dtonly -eq 1 ]]
 		then
 			get_datastores_only
+		elif [[ $manually -eq 1 ]]
+		then
+			if [[ -z "$apisrv" ]]
+			then
+				echo "No API Server given"
+				exit 1
+			else
+				get_manually_info
+			fi
 		else
 			get_and_sort
 		fi
@@ -580,6 +624,11 @@ jqmsg() {
 	echo -e "$@"
 }
 
+# output always to terminal, not to a file
+infomsg() {
+	echo -e "$@" >&2
+}
+
 # verbose logging: -v
 verbosemsg() {
 	[ $verbose -ge 1 ] && echo -e "VERBOSE: $@"
@@ -590,19 +639,23 @@ debugmsg() {
 }
 
 usage() { # for readable usage, function isn't written with auto indentation
-echo "
+echo -e "
 Usage: $0 -c <clusterXX> [-h | -v]
- Options:
-  -h : help
-  -c : cluster, to use
-  -v : 1x: verbose 2x: debug
-  -d : get datastores with comment only
- Examples:
- $0 -h
- $0 -c cluster01 -v
- $0 -c cluster02 -vv
+Options:
+\t-h\t: help
+\t-c\t: [clusterXX], to use
+\t-v\t: 1x: verbose 2x: debug
+\t-d\t: get datastores with comment only
+\t-m\t: [PVE|PBS] - use manually GET actions. Refer to:
+\t\t\t\t * https://pbs.proxmox.com/docs/api-viewer/
+\t\t\t\t * https://pve.proxmox.com/pve-docs/api-viewer/
 
- All configs should be under -> $configfile
+Examples:
+\t$0 -h
+\t$0 -c cluster01 -v
+\t$0 -c cluster02 -vv
+All configs should be under:
+\t-> $configfile
 "
 exit 1
 }
@@ -610,7 +663,7 @@ exit 1
 ## main ##
 # options #
 
-while getopts "hvdc:" opt
+while getopts "hvdm:c:" opt
 do
 	case $opt in
 		h)
@@ -621,6 +674,10 @@ do
 			;;
 		d)
 			dtonly=1
+			;;
+		m)
+			manually=1
+			apisrv=${OPTARG}
 			;;
 		c)
 			cluster=${OPTARG}
