@@ -64,7 +64,7 @@ check_each_pbs_snap() {
 		local countbackups=$(wc -l <<< ${snaps[$snap_id]})
 		local lastbakhostname=$(jq -rc ".data[] | select(.\"backup-id\"==\"$snap_id\") | select(.\"backup-time\"==$newestbackup) | \"\\(.\"comment\")\"" <<< "${pbs_json_vms[@]}")
 		local allbakhostnames=(${snapcomment[$snap_id]})
-		local oldbakhostnames=$(printf -- '%s\n' ${allbakhostnames[@]} | grep -Ev "$vmhostname" | tr '\n' ' ')
+		local oldbakhostnames=$(printf -- "%s\n" ${allbakhostnames[@]} | grep -Ev "$vmhostname" | tr '\n' ' ')
 		local gettemplate=$(echo ${vms[$snap_id]} | cut -d : -f3)
 		local getprotrected=${snapprotected[$snap_id]}
 		local getstorage=$(echo ${snapstore[$snap_id]})
@@ -247,7 +247,7 @@ check_each_pve_vm() {
 					warn "$base - LAST BACKUP WAS $newbackupage DAYS AGO!"
 				fi
 			fi
-			if (( $oldbackupage > $oldbakage ))
+			if (( $oldbackupage > $oldbakage )) && [[ "$countbackups" != "$backupamount" ]]
 			then
 				warn "$base - OLDEST BACKUP: $oldbackupage DAYS OLD. EXISTING: $countbackups. EXPECTED: $backupamount. RETENTION: $retention. CHECK RETENTION POLICY!"
 			fi
