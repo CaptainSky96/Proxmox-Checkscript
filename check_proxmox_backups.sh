@@ -277,6 +277,44 @@ check_each_pve_vm() {
 	fi
 }
 
+get_os_manually() {
+	verbosemsg "Get OS Information with API Queries..."
+
+	# Get all VMs from PVE cluster
+	for qemu_id in $(jq -rc '.data[] | select(.type=="qemu" or .type=="lxc") | .vmid' <<< "$pve_json_vms" | sort -n | uniq)
+	do
+		local vmpreinfo=$(jq -rc ".data[] | select(.vmid==$qemu_id) | \"\\(.name):\\(.node):\\(.status)\"" <<< "$pve_json_vms")
+		local name=$(echo "$vmpreinfo" | cut -d : -f1)
+		local node=$(echo "$vmpreinfo" | cut -d : -f2)
+		local state=$(echo "$vmpreinfo" | cut -d : -f3)
+
+		if [ "$state" != "running" ]
+		then
+			local os_info="[OFFLINE]"
+		else
+			local pve_url_os="${pvecluster[0]}/nodes/$node/qemu/$qemu_id/agent/get-osinfo"
+			local os_info=$(curl --max-time "$curl_pve_maxtime" -ksS -H "Authorization: PVEAPIToken=${pvecluster[1]}" --url "$pve_url_os" | jq -rc '.[] | .result."pretty-name"')
+		fi
+
+		if [[ "$os_info" == "null" ]] || [[ -z "$os_info" ]]
+		then
+			local os_info="KEIN AGENT (oder nicht bereit)"
+			local os_info="${os_info:=KEIN AGENT (oder nicht bereit)}"
+		fi
+		
+		vminfo[$qemu_id]="${name}:${node}:${state}:${os_info}"
+		debugmsg "VMID: $qemu_id - $name - $node - $state - $os_info"
+	done
+
+	{
+		echo "VMID:NAME:NODE:STATUS:OS_INFORMATION"
+		for info in ${!vminfo[@]}
+		do
+			echo "$info:${vminfo[$info]}"
+		done
+	} | osmsg
+}
+
 check_pve_vms() {
 	verbosemsg "Check VMs of backups, tags, pools, protected templates"
 	local job_count=0
@@ -465,6 +503,15 @@ get_and_sort() {
 	duration=$(( SECONDS - start_time ))
 	verbosemsg "Sorting PVE VMs took: $duration seconds"
 
+	# Get OS Information of each entry. Only, if wanted
+	if [[ $get_os_only -eq 1 ]]
+	then
+		start_time=$SECONDS
+		get_os_manually
+		duration=$(( SECONDS - start_time ))
+		verbosemsg "Getting OS Information took: $duration seconds"
+	fi
+
 	# Sort Backup infos
 	start_time=$SECONDS
 	sort_pbs_snaps
@@ -626,7 +673,14 @@ jqmsg() {
 
 # output always to terminal, not to a file
 infomsg() {
-	echo -e "$@" >&2
+	echo -e "INFO: $@" >&2
+}
+
+# output as table
+osmsg() {
+	local stdin
+	stdin=$(cat)
+	echo -e "$stdin" | column -s: -t
 }
 
 # verbose logging: -v
@@ -647,6 +701,7 @@ Options:
 \t-v\t: 1x: verbose 2x: debug
 \t-d\t: get datastores with comment only
 \t-m\t: [PVE|PBS] - use manually GET actions. Refer to:
+\t-o\t: Get Additionally the OS of the Qemu VM
 \t\t\t\t * https://pbs.proxmox.com/docs/api-viewer/
 \t\t\t\t * https://pve.proxmox.com/pve-docs/api-viewer/
 
@@ -663,7 +718,7 @@ exit 1
 ## main ##
 # options #
 
-while getopts "hvdm:c:" opt
+while getopts "hvdom:c:" opt
 do
 	case $opt in
 		h)
@@ -678,6 +733,9 @@ do
 		m)
 			manually=1
 			apisrv=${OPTARG}
+			;;
+		o)
+			get_os_only=1
 			;;
 		c)
 			cluster=${OPTARG}
