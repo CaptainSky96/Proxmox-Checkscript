@@ -217,20 +217,27 @@ check_each_pve_vm() {
 		# Check newbakage and warn, if last newest backup is too old
 		# get pruneage from pool or storage. if both exists, pool has priority
 		# if none exists, define default retention of 7 days
-		if [[ -n ${prune_backups[$getpool]} ]]
+		
+		# init local var
+		local pruneage=0
+		local retention=""
+		local backupamount=0
+		local oldbakage=${oldbakage:-7}
+
+		if [[ -n ${getpool} ]] && [[ -n ${prune_backups[$getpool]} ]]
 		then
-			local pruneage=${prune_backups[$getpool]}
-			local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-			local retention=$(date -d @${prune_backups[$getpool]})
-			local backupamount=${poolbackups[$getpool]}
-		elif [[ -n ${prune_storage[$getstorage]} ]]
+			pruneage=${prune_backups[$getpool]}
+			oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
+			retention=$(date -d @${pruneage} 2>/dev/null) || retention="Ungueltig"
+			backupamount=${poolbackups[$getpool]:-0}
+		elif [[ -n ${getstorage} ]] && [[ -n ${prune_storage[$getstorage]} ]]
 		then
-			local pruneage=${prune_storage[$getstorage]}
-			local oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-			local retention=$(date -d @${prune_storage[$getstorage]})
-			local backupamount=${storagebackups[$getstorage]}
+			pruneage=${prune_storage[$getstorage]}
+			oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
+			retention=$(date -d @${pruneage} 2>/dev/null) || retention="Ungueltig"
+			backupamount=${storagebackups[$getstorage]:-0}
 		else
-			local retention=$(date -d "$oldbakage days ago")
+			retention=$(date -d "$oldbakage days ago" 2>/dev/null) || retention=$(date -d "7 days ago" 2>/dev/null)
 		fi
 
 		debugmsg "$base - Storage: $getstorage - Retention: $retention"
@@ -375,7 +382,7 @@ sort_pve_vms() {
 			[[ $pt =~ yearly ]] && poolprunetimer+=("$value years ago") # keep-yearly
 			backupcounter=$(( backupcounter + value ))
 		done
-		prune_backups[$pool_id]=$(date -d "${poolprunetimer[*]}" +%s)
+		prune_backups[$pool_id]="$(date -d "${poolprunetimer[*]}" +%s)"
 		poolbackups[$pool_id]="$backupcounter"
 		debugmsg "pool_id: $pool_id - Prune Backups: $(date -d @${prune_backups[$pool_id]}) - Amount: ${poolbackups[$pool_id]}"
 	done
