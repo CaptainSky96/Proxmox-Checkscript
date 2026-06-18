@@ -173,7 +173,7 @@ check_each_pve_vm() {
 	fi
 
 	# Check, if a Backup for VM exists
-	if grep -q $pve_vm_id <<< "${!snaps[@]}"
+	if grep -qw "$pve_vm_id" <<< "${!snaps[@]}"
 	then
 		debugmsg "$base - backup exists"
 		# if backup for vm exists, get infos about oldest, newest and amount
@@ -181,6 +181,9 @@ check_each_pve_vm() {
 		local newestbackup=$(echo "${snaps[$pve_vm_id]}" | tail -1)
 		local countbackups=$(wc -l <<< ${snaps[$pve_vm_id]})
 		# get diff between today and oldest / newest backup
+		oldestbackup=${oldestbackup:-0}
+		newestbackup=${newestbackup:-0}
+		
 		local oldbackupage=$(( (dte - oldestbackup) / 86400 ))
 		local newbackupage=$(( (dte - newestbackup) / 86400 ))
 
@@ -199,11 +202,11 @@ check_each_pve_vm() {
 			local scheduletime=$(date -d "last $getschedule" +%s)
 			local scheduleage=$(( (dte - scheduletime) / 86400 ))
 		else
-			local scheduleage=0
+			local scheduleage=1
 		fi
 
-		debugmsg "$base - Oldest Backup: $oldbackupage - Days:$(date -d @$oldestbackup +'%F %T')"
-		debugmsg "$base - Newest Backup: $newbackupage - Days:$(date -d @$newestbackup +'%F %T')"
+		debugmsg "$base - Oldest Backup: $oldbackupage - Days: $(date -d @$oldestbackup +'%F %T')"
+		debugmsg "$base - Newest Backup: $newbackupage - Days: $(date -d @$newestbackup +'%F %T')"
 		debugmsg "$base - Amount of Backups: $countbackups"
 
 		# check if VM has Tag: 'critical'. if not, use minbakage
@@ -226,15 +229,15 @@ check_each_pve_vm() {
 
 		if [[ -n ${getpool} ]] && [[ -n ${prune_backups[$getpool]} ]]
 		then
-			pruneage=${prune_backups[$getpool]}
-			oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-			retention=$(date -d @${pruneage} 2>/dev/null) || retention="Ungueltig"
+			pruneage="${prune_backups[$getpool]}"
+			oldbakage="$(( ((dte - pruneage) / 86400 ) + 1 ))"
+			retention=$(date -d @${pruneage} 2>/dev/null) || true
 			backupamount=${poolbackups[$getpool]:-0}
 		elif [[ -n ${getstorage} ]] && [[ -n ${prune_storage[$getstorage]} ]]
 		then
-			pruneage=${prune_storage[$getstorage]}
+			pruneage="${prune_storage[$getstorage]}"
 			oldbakage=$(( ((dte - pruneage) / 86400) + 1 ))
-			retention=$(date -d @${pruneage} 2>/dev/null) || retention="Ungueltig"
+			retention=$(date -d @${pruneage} 2>/dev/null) || true
 			backupamount=${storagebackups[$getstorage]:-0}
 		else
 			retention=$(date -d "$oldbakage days ago" 2>/dev/null) || retention=$(date -d "7 days ago" 2>/dev/null)
@@ -265,7 +268,7 @@ check_each_pve_vm() {
 			fi
 		fi
 	else
-		local vmuptime=$(date -d "$getuptime seconds ago" +%s)
+		local vmuptime=$(date -d "$getuptime seconds ago" +%s 2>/dev/null) || vmuptime=0 
 		if ! (( $nobackup ))
 		then
 			if [[ $gettemplate == 1 ]]
@@ -382,9 +385,9 @@ sort_pve_vms() {
 			[[ $pt =~ yearly ]] && poolprunetimer+=("$value years ago") # keep-yearly
 			backupcounter=$(( backupcounter + value ))
 		done
-		prune_backups[$pool_id]="$(date -d "${poolprunetimer[*]}" +%s)"
+		prune_backups[$pool_id]="$(date -d "${poolprunetimer[*]}" +%s 2>/dev/null)"
 		poolbackups[$pool_id]="$backupcounter"
-		debugmsg "pool_id: $pool_id - Prune Backups: $(date -d @${prune_backups[$pool_id]}) - Amount: ${poolbackups[$pool_id]}"
+		debugmsg "pool_id: $pool_id - Prune Backups: $(date -d "@${prune_backups[$pool_id]}" 2>/dev/null) - Amount: ${poolbackups[$pool_id]}"
 	done
 
 	# Get Backup Storages with the standard Retention Policy
@@ -405,9 +408,9 @@ sort_pve_vms() {
 			backupcounter=$(( backupcounter + value ))
 		done
 		IFS=$'\n'
-		prune_storage[$storage]=$(date -d "${storageprunetimer[*]}" +%s)
+		prune_storage[$storage]="$(date -d "${storageprunetimer[*]}" +%s 2>/dev/null)"
 		storagebackups[$storage]="$backupcounter"
-		debugmsg "storage: $storage - Prune Backups: $(date -d @${prune_storage[$storage]}) - Amount: ${storagebackups[$storage]}"
+		debugmsg "storage: $storage - Prune Backups: $(date -d "@${prune_storage[$storage]}" 2>/dev/null) - Amount: ${storagebackups[$storage]}"
 	done
 	unset IFS
 }
